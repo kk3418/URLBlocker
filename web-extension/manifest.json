@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "URL Blocker",
+  "version": "1.0.0",
+  "description": "阻擋指定網址的訪問，保護您免受干擾",
+  "icons": {
+    "16": "images/icon-16.png",
+    "32": "images/icon-32.png",
+    "48": "images/icon-48.png",
+    "128": "images/icon-128.png"
+  },
+  "permissions": [
+    "declarativeNetRequest",
+    "declarativeNetRequestFeedback",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "images/icon-16.png",
+      "32": "images/icon-32.png"
+    },
+    "default_title": "URL Blocker"
+  },
+  "declarative_net_request": {
+    "rule_resources": []
+  }
+}
