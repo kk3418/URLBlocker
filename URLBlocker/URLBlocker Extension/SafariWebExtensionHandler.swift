@@ -2,7 +2,7 @@
 //  SafariWebExtensionHandler.swift
 //  URLBlocker Extension
 //
-//  Created by Kevin on 2026/2/19.
+//  Created by Kevin on 2026/2/20.
 //
 
 import SafariServices

@@ -5,95 +5,97 @@
   // 防止在 blocked 頁面本身執行
   if (location.href.includes('blocked.html')) return;
 
-  // 向 background 查詢此 URL 是否應被封鎖
-  let isBlocked = false;
-  try {
-    const response = await browser.runtime.sendMessage({
-      action: 'isBlocked',
-      url: location.href
-    });
-    isBlocked = response && response.blocked;
-  } catch (e) {
-    // background 尚未就緒時靜默失敗
-    return;
+  let currentUrl = location.href;
+  let isActivelyBlocking = false;
+
+  async function checkAndBlock() {
+    if (isActivelyBlocking) return;
+
+    let isBlocked = false;
+    try {
+      const response = await browser.runtime.sendMessage({
+        action: 'isBlocked',
+        url: location.href
+      });
+      isBlocked = response && response.blocked;
+    } catch (e) {
+      // background 尚未就緒時靜默失敗
+      return;
+    }
+
+    if (!isBlocked) return;
+
+    isActivelyBlocking = true;
+
+    // 立即停止頁面載入，阻止後續腳本執行
+    window.stop();
+
+    try {
+      // 優先嘗試跳轉到擴充功能的封鎖頁面，這是最安全的做法（跳離原網域，原網站腳本無法干擾）
+      const blockedPageUrl = browser.runtime.getURL(`blocked/blocked.html?url=${encodeURIComponent(location.href)}`);
+      window.location.replace(blockedPageUrl);
+    } catch (e) {
+      // 備用方案：若無法重定向，則用強硬的方式替換當前頁面內容
+      const blockHTML = `
+        <head>
+          <title>網頁已封鎖</title>
+          <style>
+            html, body {
+              margin: 0 !important; padding: 0 !important; width: 100vw !important; height: 100vh !important;
+              background: #f2f2f7 !important; display: flex !important; align-items: center !important; justify-content: center !important;
+              font-family: -apple-system, BlinkMacSystemFont, sans-serif !important; text-align: center !important;
+              visibility: visible !important; opacity: 1 !important;
+              position: fixed !important; top: 0 !important; left: 0 !important; z-index: 2147483647 !important;
+              overflow: hidden !important;
+            }
+          </style>
+        </head>
+        <body>
+          <div>
+            <div style="font-size: 60px; margin-bottom: 20px;">🚫</div>
+            <h2 style="color: #1c1c1e; margin: 0 0 12px; font-size: 24px;">此網頁已被封鎖</h2>
+            <p style="color: #8e8e93; font-size: 16px; margin: 0;">${location.hostname}</p>
+          </div>
+        </body>
+      `;
+
+      function enforceBlock() {
+        if (!document.documentElement.innerHTML.includes('此網頁已被封鎖')) {
+          document.documentElement.innerHTML = blockHTML;
+        }
+      }
+
+      enforceBlock();
+
+      // 鎖死 DOM，防止原網站的腳本重建畫面
+      const observer = new MutationObserver(() => {
+        observer.disconnect();
+        enforceBlock();
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+          attributes: true
+        });
+      });
+
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true
+      });
+    }
   }
 
-  if (!isBlocked) return;
+  // 初始檢查
+  await checkAndBlock();
 
-  // 立即阻止頁面渲染
-  document.documentElement.style.visibility = 'hidden';
+  // 監聽 SPA (單頁應用) 的網址變化
+  // 使用 setInterval 是最穩定的方式，能捕捉所有形式的網址變更 (pushState, replaceState, hashchange 等)
+  setInterval(() => {
+    if (location.href !== currentUrl) {
+      currentUrl = location.href;
+      checkAndBlock();
+    }
+  }, 500);
 
-  // 等待 DOM 準備好後顯示封鎖覆蓋層
-  function showBlockOverlay() {
-    document.documentElement.style.visibility = 'visible';
-
-    // 清空 body
-    document.body.innerHTML = '';
-    document.body.style.cssText = `
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-      background: #f2f2f7;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-    `;
-
-    const container = document.createElement('div');
-    container.style.cssText = `
-      text-align: center;
-      padding: 40px 24px;
-      max-width: 360px;
-    `;
-
-    container.innerHTML = `
-      <div style="
-        width: 80px;
-        height: 80px;
-        background: #ff3b30;
-        border-radius: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 24px;
-        font-size: 40px;
-      ">🚫</div>
-      <h1 style="
-        font-size: 24px;
-        font-weight: 700;
-        color: #1c1c1e;
-        margin: 0 0 12px;
-      ">此網頁已被封鎖</h1>
-      <p style="
-        font-size: 16px;
-        color: #8e8e93;
-        line-height: 1.5;
-        margin: 0 0 32px;
-      ">您已將此網址加入封鎖清單：<br>
-      <strong style="color: #3a3a3c; word-break: break-all;">${location.hostname}</strong></p>
-      <button onclick="history.back()" style="
-        display: block;
-        width: 100%;
-        padding: 14px;
-        background: #007aff;
-        color: white;
-        border: none;
-        border-radius: 12px;
-        font-size: 17px;
-        font-weight: 600;
-        cursor: pointer;
-        margin-bottom: 12px;
-      ">返回上一頁</button>
-    `;
-
-    document.body.appendChild(container);
-    document.title = '網頁已封鎖';
-  }
-
-  if (document.body) {
-    showBlockOverlay();
-  } else {
-    document.addEventListener('DOMContentLoaded', showBlockOverlay);
-  }
 })();

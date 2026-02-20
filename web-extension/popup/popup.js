@@ -121,10 +121,10 @@ async function addUrl() {
   }
 }
 
-// 移除封鎖網址（延遲 5 小時）
+// 移除封鎖網址（延遲 3 小時）
 async function removeUrl(url) {
   try {
-    const removalTime = Date.now() + (5 * 60 * 60 * 1000); // 5 小時後
+    const removalTime = Date.now() + (3 * 60 * 60 * 1000); // 3 小時後
     pendingRemovals[url] = removalTime;
 
     await browser.runtime.sendMessage({
@@ -134,7 +134,7 @@ async function removeUrl(url) {
     });
 
     renderList();
-    showError(`${url} 將在 5 小時後被移除。點擊 ⟲ 可取消。`);
+    showError(`${url} 將在 3 小時後被移除。點擊 ⟲ 可取消。`);
   } catch (e) {
     showError('設定失敗，請再試一次');
   }

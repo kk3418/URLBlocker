@@ -56,7 +56,7 @@ xcrun safari-web-extension-converter \
   "$EXTENSION_DIR" \
   --project-location "$OUTPUT_DIR" \
   --app-name "$APP_NAME" \
-  --bundle-identifier "com.urlblocker.safari" \
+  --bundle-identifier "com.urlblocker.URLBlocker.Extension" \
   --swift \
   --ios-only \
   --no-open \

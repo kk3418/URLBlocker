@@ -122,7 +122,7 @@ async function isUrlBlocked(url) {
   return urls.some(blockedUrl => urlMatchesRule(url, blockedUrl));
 }
 
-// 排定 5 小時後移除
+// 排定 3 小時後移除
 async function scheduleRemoval(url, removalTime) {
   const { [PENDING_REMOVALS_KEY]: pendingRemovals = {} } = await browser.storage.local.get(PENDING_REMOVALS_KEY);
   pendingRemovals[url] = removalTime;
