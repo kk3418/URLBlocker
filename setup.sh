@@ -1,5 +1,5 @@
 #!/bin/bash
-# setup.sh - 將 Web Extension 轉換為 Safari iOS 擴充功能 Xcode 專案
+# setup.sh - 將 Web Extension 轉換為 Safari Xcode 專案，或說明 Chrome 載入方式
 
 set -e
 
@@ -9,9 +9,39 @@ OUTPUT_DIR="$SCRIPT_DIR"
 APP_NAME="URLBlocker"
 
 echo "======================================"
-echo "  URL Blocker Safari Extension 設定"
+echo "  URL Blocker Extension 設定"
 echo "======================================"
 echo ""
+echo "請選擇目標瀏覽器："
+echo "  1) Safari (macOS + iOS) - 需要 Xcode"
+echo "  2) Chrome - 直接載入，不需要 Xcode"
+echo ""
+read -p "輸入選項 (1/2): " browser_choice
+
+# ─── Chrome ───────────────────────────────────────────────
+if [[ "$browser_choice" == "2" ]]; then
+  echo ""
+  echo "======================================"
+  echo "  Chrome 載入方式"
+  echo "======================================"
+  echo ""
+  echo "步驟："
+  echo "  1. 開啟 Chrome，網址列輸入： chrome://extensions"
+  echo "  2. 右上角開啟「開發人員模式」"
+  echo "  3. 點擊「載入未封裝項目」"
+  echo "  4. 選擇以下資料夾："
+  echo "     $EXTENSION_DIR"
+  echo ""
+  echo "✅ 完成！每次修改程式碼後，在 chrome://extensions 按重新整理即可。"
+  echo ""
+  exit 0
+fi
+
+# ─── Safari (Xcode) ───────────────────────────────────────
+if [[ "$browser_choice" != "1" ]]; then
+  echo "無效選項，結束。"
+  exit 1
+fi
 
 # 檢查 Xcode 是否安裝
 if ! command -v xcrun &> /dev/null; then
@@ -48,17 +78,16 @@ if [ -d "$OUTPUT_DIR/$APP_NAME" ]; then
 fi
 
 echo ""
-echo "🔄 正在轉換 Web Extension 為 Safari Xcode 專案..."
+echo "🔄 正在轉換 Web Extension 為 Safari Xcode 專案（macOS + iOS）..."
 echo ""
 
-# 執行轉換
+# 執行轉換（不加 --ios-only，同時支援 macOS 和 iOS）
 xcrun safari-web-extension-converter \
   "$EXTENSION_DIR" \
   --project-location "$OUTPUT_DIR" \
   --app-name "$APP_NAME" \
   --bundle-identifier "com.urlblocker.URLBlocker.Extension" \
   --swift \
-  --ios-only \
   --no-open \
   --force
 
@@ -73,10 +102,16 @@ echo "後續步驟："
 echo "  1. 開啟 $APP_NAME/$APP_NAME.xcodeproj"
 echo "  2. 在 Xcode 中設定您的 Apple 開發者帳號"
 echo "     （Signing & Capabilities → Team）"
-echo "  3. 選擇 iOS 真機或模擬器"
-echo "  4. 點擊 Run (▶) 建置並安裝"
-echo "  5. 在 iOS 上："
-echo "     設定 → Safari → 擴充功能 → URL Blocker → 啟用"
 echo ""
-echo "提示：若要在實體 iPhone 上測試，需要 Apple Developer 帳號"
+echo "  ▶ 測試 macOS Safari："
+echo "     - 選擇 My Mac 作為執行目標"
+echo "     - 點擊 Run (▶) 建置並安裝"
+echo "     - Safari → 設定 → 延伸功能 → URL Blocker → 啟用"
+echo ""
+echo "  ▶ 測試 iOS/iPad："
+echo "     - 選擇 iOS 模擬器或實體裝置"
+echo "     - 點擊 Run (▶) 建置並安裝"
+echo "     - 設定 → Safari → 擴充功能 → URL Blocker → 啟用"
+echo ""
+echo "提示：若要在實體裝置上測試，需要 Apple Developer 帳號"
 echo ""

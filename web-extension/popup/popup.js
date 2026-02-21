@@ -1,5 +1,8 @@
 // popup.js - Popup 頁面邏輯
 
+// Chrome/Safari browser API 相容性
+if (typeof browser === 'undefined') var browser = chrome;
+
 const urlInput = document.getElementById('urlInput');
 const addBtn = document.getElementById('addBtn');
 const errorMsg = document.getElementById('errorMsg');

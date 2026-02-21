@@ -1,9 +1,17 @@
 // background.js - 管理封鎖規則的 Service Worker
 
+// Chrome/Safari browser API 相容性（Chrome 用 chrome.*，Safari 用 browser.*）
+if (typeof browser === 'undefined') var browser = chrome;
+
 const STORAGE_KEY = 'blockedUrls';
 const ENABLED_KEY = 'blockingEnabled';
 const PENDING_REMOVALS_KEY = 'pendingRemovals';
 let removalCheckInterval = null;
+
+// ------
+// TODO: 在 chrome 上可以運作
+// TODO: 在 mac safari 測試q
+// ------
 
 // 擴充功能安裝或更新時初始化
 browser.runtime.onInstalled.addListener(async () => {
@@ -48,8 +56,16 @@ function startRemovalChecker() {
   }, 10000); // 每 10 秒檢查一次
 }
 
-// 接收來自 popup 的訊息
+// 接收來自 popup / content script 的訊息
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // content.js 請求導航到封鎖頁面（使用 tabs.update，Chrome 允許 background 導向 extension 頁面）
+  if (message.action === 'navigateToBlocked') {
+    const url = browser.runtime.getURL(`/blocked/blocked.html?url=${encodeURIComponent(message.url)}`);
+    browser.tabs.update(sender.tab.id, { url })
+      .then(() => sendResponse({ success: true }))
+      .catch(e => sendResponse({ success: false, error: e.message }));
+    return true;
+  }
   handleMessage(message).then(sendResponse);
   return true; // 保持 message channel 開放
 });
@@ -138,44 +154,54 @@ async function cancelRemovalSchedule(url) {
 
 // 同步 declarativeNetRequest 規則
 async function syncRules() {
-  const data = await browser.storage.local.get([STORAGE_KEY, ENABLED_KEY]);
-  const urls = data[STORAGE_KEY] || [];
-  const enabled = data[ENABLED_KEY] !== false;
+  try {
+    const data = await browser.storage.local.get([STORAGE_KEY, ENABLED_KEY]);
+    const urls = data[STORAGE_KEY] || [];
+    const enabled = data[ENABLED_KEY] !== false;
 
-  // 移除所有現有的動態規則
-  const existingRules = await browser.declarativeNetRequest.getDynamicRules();
-  const existingIds = existingRules.map(r => r.id);
+    // 移除所有現有的動態規則
+    const existingRules = await browser.declarativeNetRequest.getDynamicRules();
+    const existingIds = existingRules.map(r => r.id);
 
-  if (!enabled || urls.length === 0) {
-    if (existingIds.length > 0) {
-      await browser.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: existingIds,
-        addRules: []
-      });
-    }
-    return;
-  }
-
-  // 建立新規則：重定向到封鎖頁面
-  const newRules = urls.map((url, index) => ({
-    id: index + 1,
-    priority: 1,
-    action: {
-      type: 'redirect',
-      redirect: {
-        extensionPath: `/blocked/blocked.html?url=${encodeURIComponent(url)}`
+    if (!enabled || urls.length === 0) {
+      if (existingIds.length > 0) {
+        await browser.declarativeNetRequest.updateDynamicRules({
+          removeRuleIds: existingIds,
+          addRules: []
+        });
       }
-    },
-    condition: {
-      urlFilter: buildUrlFilter(url),
-      resourceTypes: ['main_frame']
+      console.log('[URLBlocker] Rules cleared (disabled or no URLs)');
+      return;
     }
-  }));
 
-  await browser.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: existingIds,
-    addRules: newRules
-  });
+    // 建立新規則：重定向到封鎖頁面
+    const newRules = urls.map((url, index) => ({
+      id: index + 1,
+      priority: 1,
+      action: {
+        type: 'redirect',
+        redirect: {
+          extensionPath: `/blocked/blocked.html?url=${encodeURIComponent(url)}`
+        }
+      },
+      condition: {
+        urlFilter: buildUrlFilter(url),
+        resourceTypes: ['main_frame']
+      }
+    }));
+
+    console.log('[URLBlocker] Syncing rules:', JSON.stringify(newRules));
+
+    await browser.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: existingIds,
+      addRules: newRules
+    });
+
+    console.log('[URLBlocker] Rules synced successfully');
+  } catch (e) {
+    console.error('[URLBlocker] syncRules FAILED:', e.message, e);
+    throw e;
+  }
 }
 
 // 將使用者輸入的 URL 轉換為 urlFilter 模式
